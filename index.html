@@ -1,0 +1,493 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Expectativa de nota</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Mono:wght@500&family=Public+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: columna única centrada de 880px; pestañas Participar / Resultados; gráfico de barras vivo en tarjeta, el resto sobre el fondo. */
+:root {
+  --bg: #f4f6fb;
+  --surface: #ffffff;
+  --ink: #141a2e;
+  --muted: #5a6382;
+  --line: #dde2ee;
+  --exp: #3347c8;
+  --real: #d4860b;
+  --over: #c0344f;
+  --under: #2e8b57;
+  --hit: #8a93ad;
+  --danger: #b3261e;
+  --btn-ink: #ffffff;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "Public Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1322; --surface: #171c30; --ink: #eceffa; --muted: #9aa3c0; --line: #2a3150;
+    --exp: #8da0ff; --real: #f0b44a; --over: #ff7a93; --under: #5fd08f; --hit: #7f88a6; --danger: #ff8a80; --btn-ink: #0f1322;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1322; --surface: #171c30; --ink: #eceffa; --muted: #9aa3c0; --line: #2a3150;
+  --exp: #8da0ff; --real: #f0b44a; --over: #ff7a93; --under: #5fd08f; --hit: #7f88a6; --danger: #ff8a80; --btn-ink: #0f1322;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.5;
+  padding-block: 28px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+body.present .wrap { max-width: 1120px; }
+body.present .hide-present { display: none; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+h1 { font-family: var(--display); font-size: clamp(32px, 7vw, 48px); line-height: 1.05; margin: 0 0 10px; letter-spacing: -.02em; text-wrap: balance; }
+h2 { font-family: var(--display); font-size: 20px; line-height: 1.2; margin: 0; text-wrap: balance; }
+p { margin: 0; }
+.lead { color: var(--muted); max-width: 62ch; }
+.privacy { border-left: 3px solid var(--exp); padding: 2px 0 2px 14px; color: var(--muted); max-width: 66ch; font-size: 14px; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+.tab { font: 600 15px var(--body); color: var(--muted); background: none; border: 0; border-bottom: 3px solid transparent; padding: 10px 14px; cursor: pointer; margin-bottom: -1px; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--exp); }
+.tab:focus-visible, .btn:focus-visible, input:focus-visible { outline: 3px solid var(--exp); outline-offset: 2px; }
+.tab .n { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-left: 6px; }
+.banner { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; font-size: 14px; }
+.banner.warn { border-color: var(--danger); color: var(--danger); }
+.banner b { font-family: var(--mono); font-weight: 500; }
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.step[data-off="true"] { opacity: .6; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch; }
+input.num { font: 500 28px var(--mono); width: 7.5ch; padding: 8px 12px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
+input.num:disabled { cursor: not-allowed; }
+.btn { font: 600 15px var(--body); border-radius: 8px; border: 1px solid var(--exp); background: var(--exp); color: var(--btn-ink); padding: 10px 16px; cursor: pointer; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+.btn.danger { background: transparent; color: var(--danger); border-color: var(--danger); }
+.hint { font-size: 13px; color: var(--muted); }
+.msg { font-size: 13px; min-height: 1.3em; color: var(--under); }
+.msg.err { color: var(--danger); }
+.livebar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--muted); }
+.live { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--ink); }
+.live i { width: 9px; height: 9px; border-radius: 50%; background: var(--under); display: inline-block; }
+@media (prefers-reduced-motion: no-preference) {
+  .live i { animation: pulse 1.8s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+  .tab, .btn { transition: background-color .15s, border-color .15s; }
+  #hist rect { transition: transform .7s cubic-bezier(.2, .8, .2, 1); }
+}
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+.stat .v { font: 500 30px var(--mono); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.stat .k { font-size: 13px; color: var(--muted); margin-top: 4px; }
+body.present .stat .v { font-size: 44px; }
+.summary { font-family: var(--display); font-size: clamp(20px, 3.6vw, 26px); line-height: 1.25; max-width: 34ch; text-wrap: balance; }
+body.present .summary { font-size: 32px; }
+.summary b { font-weight: 700; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+svg { display: block; width: 100%; height: auto; }
+svg .t { font: 11px var(--mono); fill: var(--muted); }
+svg .tt { font: 11px var(--body); fill: var(--muted); }
+#hist .be { fill: var(--exp); }
+#hist .br { fill: var(--real); }
+#hist rect { transform-box: fill-box; transform-origin: 50% 100%; }
+.stack { display: flex; height: 34px; border-radius: 6px; overflow: hidden; background: var(--line); }
+.stack div { min-width: 0; }
+.outcomes { display: grid; gap: 8px; font-size: 14px; }
+.outcomes div { display: flex; justify-content: space-between; gap: 12px; }
+.outcomes b { font-family: var(--mono); font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 10px; padding: 28px 20px; display: flex; flex-direction: column; gap: 6px; color: var(--muted); }
+.empty h2 { color: var(--ink); }
+.danger-zone { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 13px; color: var(--muted); }
+#r-live { display: flex; flex-direction: column; gap: 20px; }
+#panel-res { display: flex; flex-direction: column; gap: 16px; }
+#panel-res[hidden], #panel-par[hidden], #r-live[hidden], #r-empty[hidden] { display: none; }
+</style>
+
+<div class="wrap">
+  <header class="hide-present">
+    <p class="eyebrow">Grupo de clase</p>
+    <h1>Expectativa de nota</h1>
+    <p class="lead">Hasta las 14:00 anotás qué nota esperás sacar. Después de las 14:00, cuando salgan las notas, cargás la real. Los resultados se arman en vivo.</p>
+  </header>
+  <p class="privacy hide-present">Es anónima. Tu respuesta se guarda de forma segura con un identificador único en tu navegador.</p>
+
+  <div id="status" class="hide-present"></div>
+
+  <div class="tabs hide-present" role="tablist">
+    <button class="tab" role="tab" id="tab-par" aria-selected="true" aria-controls="panel-par">Participar</button>
+    <button class="tab" role="tab" id="tab-res" aria-selected="false" aria-controls="panel-res">Resultados<span class="n" id="count"></span></button>
+  </div>
+
+  <section id="panel-par" role="tabpanel" aria-labelledby="tab-par" style="display:flex;flex-direction:column;gap:16px">
+    <div class="banner" id="phase"></div>
+    <div class="steps">
+      <div class="step" id="step-exp">
+        <p class="eyebrow" style="margin:0">Hasta las 14:00</p>
+        <h2>¿Qué nota esperás sacar?</h2>
+        <div class="row">
+          <input class="num" id="exp" type="text" inputmode="decimal" autocomplete="off" aria-label="Nota esperada" placeholder="7,5" disabled>
+          <button class="btn" id="save-exp" disabled>Guardar</button>
+        </div>
+        <p class="hint" id="hint-exp">Escala de 0 a 10. Podés usar coma o punto.</p>
+        <p class="msg" id="msg-exp" aria-live="polite"></p>
+      </div>
+      <div class="step" id="step-real" data-off="true">
+        <p class="eyebrow" style="margin:0">Desde las 14:00</p>
+        <h2>¿Qué nota sacaste?</h2>
+        <div class="row">
+          <input class="num" id="real" type="text" inputmode="decimal" autocomplete="off" aria-label="Nota real" placeholder="6" disabled>
+          <button class="btn" id="save-real" disabled>Guardar</button>
+        </div>
+        <p class="hint" id="hint-real"></p>
+        <p class="msg" id="msg-real" aria-live="polite"></p>
+      </div>
+    </div>
+    <div class="danger-zone" id="del-zone" hidden></div>
+  </section>
+
+  <section id="panel-res" role="tabpanel" aria-labelledby="tab-res" hidden>
+    <div class="livebar">
+      <span class="live"><i></i>En vivo</span>
+      <span id="r-time">Esperando respuestas…</span>
+      <button class="btn ghost" id="present">Modo presentación</button>
+    </div>
+    <div id="r-empty" class="empty" hidden></div>
+    <div id="r-live" hidden>
+      <div class="stats" id="r-stats"></div>
+      <p class="summary" id="r-summary" hidden></p>
+      <div class="card">
+        <h2>Cuántos esperaban y cuántos sacaron cada nota</h2>
+        <div class="legend"><span><i style="background:var(--exp)"></i>Esperada</span><span id="leg-real"><i style="background:var(--real)"></i>Real</span></div>
+        <svg id="hist" viewBox="0 0 640 250" role="img" aria-label="Cantidad de personas por nota, esperada y real"><g id="hist-grid"></g><g id="hist-bars"></g><g id="hist-x"></g></svg>
+        <p class="hint" id="hist-note"></p>
+      </div>
+      <div id="r-pairs"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  var CUTOFF = Date.parse("2026-10-22T14:00:00-03:00");
+  var MIN = 0, MAX = 10, MIN_SHOWN = 3, HIT = 0.5;
+  var API_URL = "/.netlify/functions/responses";
+  var $ = function (id) { return document.getElementById(id); };
+  var fmt = function (n) { return n == null ? "–" : Number(n).toLocaleString("es-AR", { maximumFractionDigits: 1 }); };
+  var fmtIn = function (n) { return String(n).replace(".", ","); };
+  
+  // Obtener o generar un ID de usuario único almacenado en localStorage
+  function getUserId() {
+    var id = localStorage.getItem("survey_uid");
+    if (!id) {
+      id = 'user_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+      localStorage.setItem("survey_uid", id);
+    }
+    return id;
+  }
+
+  var uid = getUserId();
+  var S = { tab: location.hash === "#resultados" ? "res" : "par", loaded: false, rows: [], mine: null, busy: false, confirmDel: false, updated: null, present: false, phase: "", error: null };
+
+  function phase() { return Date.now() < CUTOFF ? "pre" : "post"; }
+  function countdown() {
+    var ms = CUTOFF - Date.now(); if (ms <= 0) return "";
+    var min = Math.ceil(ms / 60000), h = Math.floor(min / 60), m = min % 60;
+    return h > 0 ? h + " h " + m + " min" : m + " min";
+  }
+  function parse(s) {
+    var n = parseFloat(String(s).trim().replace(",", "."));
+    if (!isFinite(n) || n < MIN || n > MAX) return null;
+    return Math.round(n * 10) / 10;
+  }
+  function setMsg(key, text, isErr) {
+    var el = $("msg-" + key); el.textContent = text || ""; el.className = "msg" + (isErr ? " err" : "");
+  }
+  function avg(a) { return a.length ? a.reduce(function (s, x) { return s + x; }, 0) / a.length : null; }
+
+  /* ---------- llamadas API ---------- */
+  async function fetchResponses() {
+    try {
+      var res = await fetch(API_URL);
+      if (!res.ok) throw new Error("Error en el servidor");
+      var data = await res.json();
+      S.rows = data;
+      S.mine = data.find(function(r) { return r.userId === uid; }) || null;
+      S.loaded = true;
+      S.error = null;
+      S.updated = new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      renderAll();
+    } catch (e) {
+      S.loaded = true;
+      S.error = "No se pudieron cargar las respuestas.";
+      renderAll();
+    }
+  }
+
+  async function apiCall(method, body) {
+    var options = {
+      method: method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(Object.assign({ userId: uid }, body))
+    };
+    var res = await fetch(API_URL, options);
+    if (!res.ok) throw new Error("Error al procesar solicitud");
+    return await res.json();
+  }
+
+  /* ---------- participar ---------- */
+  function syncInput(el, value) {
+    if (document.activeElement === el || el.dataset.dirty) return;
+    el.value = value == null ? "" : fmtIn(value);
+  }
+  function renderStatus() {
+    var t = "";
+    if (S.error) t = '<div class="banner warn">' + S.error + '</div>';
+    $("status").innerHTML = t;
+  }
+  function renderPhase() {
+    var p = phase(), cd = countdown();
+    var t = p === "pre"
+      ? 'La nota esperada se puede cargar hasta las <b>14:00</b>' + (cd ? ' (faltan <b>' + cd + '</b>)' : '') + '. La nota real se habilita después.'
+      : 'El plazo para la nota esperada cerró a las <b>14:00</b>. Ahora se puede cargar la nota real.';
+    if ($("phase").innerHTML !== t) $("phase").innerHTML = t;
+  }
+  function renderParticipate() {
+    var p = phase(), row = S.mine;
+    var can = S.loaded;
+    var exp = $("exp"), real = $("real");
+    renderPhase();
+    syncInput(exp, row ? row.expected : null);
+    syncInput(real, row && row.real != null ? row.real : null);
+    var expOn = can && p === "pre", realOn = can && p === "post" && !!row;
+    exp.disabled = !expOn || S.busy;
+    $("save-exp").disabled = !expOn || S.busy;
+    $("save-exp").textContent = row ? "Actualizar" : "Guardar";
+    real.disabled = !realOn || S.busy;
+    $("save-real").disabled = !realOn || S.busy;
+    $("save-real").textContent = row && row.real != null ? "Actualizar" : "Guardar";
+    $("step-exp").dataset.off = p === "pre" ? "false" : "true";
+    $("step-real").dataset.off = p === "post" ? "false" : "true";
+    $("hint-exp").textContent = p === "pre" ? "Escala de 0 a 10. Podés usar coma o punto." : (row ? "El plazo cerró. Tu nota esperada quedó guardada." : "El plazo cerró y no cargaste tu nota esperada.");
+    var hr;
+    if (p === "pre") hr = "Se habilita a las 14:00. Volvé a esta página cuando salgan las notas.";
+    else if (!row) hr = "Solo pueden cargar la nota real quienes guardaron su nota esperada antes de las 14:00.";
+    else hr = "Escala de 0 a 10. Podés usar coma o punto.";
+    $("hint-real").textContent = hr;
+    var del = $("del-zone");
+    del.hidden = !row;
+    if (row) {
+      del.innerHTML = S.confirmDel
+        ? '<span>¿Borrar tu respuesta? No se puede deshacer.</span><button class="btn danger" id="del-yes">Sí, borrar</button><button class="btn ghost" id="del-no">Cancelar</button>'
+        : '<button class="btn danger" id="del">Borrar mi respuesta</button>';
+    }
+  }
+  async function guarded(key, fn) {
+    if (S.busy) return;
+    S.busy = true; setMsg(key, ""); renderParticipate();
+    try { await fn(); await fetchResponses(); } catch (e) { setMsg(key, "No se pudo guardar. Probá de nuevo.", true); }
+    finally { S.busy = false; renderParticipate(); renderResults(); }
+  }
+  function saveExpected() {
+    if (phase() !== "pre") { setMsg("exp", "El plazo para la nota esperada ya cerró.", true); renderParticipate(); return; }
+    var v = parse($("exp").value);
+    if (v == null) { setMsg("exp", "Ingresá un número entre 0 y 10.", true); return; }
+    guarded("exp", async function () {
+      await apiCall("POST", { expected: v });
+      delete $("exp").dataset.dirty;
+      $("exp").value = fmtIn(v);
+      setMsg("exp", "Guardado.");
+    });
+  }
+  function saveReal() {
+    if (phase() !== "post") { setMsg("real", "Todavía no se habilitó la nota real.", true); renderParticipate(); return; }
+    var v = parse($("real").value);
+    if (v == null) { setMsg("real", "Ingresá un número entre 0 y 10.", true); return; }
+    guarded("real", async function () {
+      if (!S.mine) return;
+      await apiCall("PUT", { real: v });
+      delete $("real").dataset.dirty;
+      $("real").value = fmtIn(v);
+      setMsg("real", "Guardado.");
+    });
+  }
+  function deleteMine() {
+    guarded("exp", async function () {
+      if (!S.mine) return;
+      await apiCall("DELETE", {});
+      S.mine = null; S.confirmDel = false;
+      delete $("exp").dataset.dirty; delete $("real").dataset.dirty;
+      $("exp").value = ""; $("real").value = "";
+      setMsg("exp", "Tu respuesta se borró.");
+    });
+  }
+
+  /* ---------- gráfico de barras vivo ---------- */
+  var HW = 640, HH = 250, HL = 30, HR = 6, HT = 10, HB = 28;
+  var HGW = (HW - HL - HR) / 11, HPLOT = HH - HT - HB;
+  var NS = "http://www.w3.org/2000/svg", bars = [];
+  function niceStep(max) { return max <= 5 ? 1 : max <= 10 ? 2 : Math.ceil(max / 5); }
+  function buildHist() {
+    var g = $("hist-bars"), xs = "";
+    for (var i = 0; i <= 10; i++) {
+      var pair = {};
+      ["be", "br"].forEach(function (cls) {
+        var r = document.createElementNS(NS, "rect");
+        r.setAttribute("class", cls); r.setAttribute("y", HT); r.setAttribute("height", HPLOT);
+        r.style.transform = "scaleY(0)"; g.appendChild(r); pair[cls] = r;
+      });
+      bars.push(pair);
+      xs += '<text class="t" x="' + (HL + i * HGW + HGW / 2) + '" y="' + (HH - 9) + '" text-anchor="middle">' + i + '</text>';
+    }
+    $("hist-x").innerHTML = xs;
+  }
+  function updateHist(exps, reals) {
+    var be = [], br = [], i;
+    for (i = 0; i <= 10; i++) { be.push(0); br.push(0); }
+    exps.forEach(function (v) { be[Math.round(v)]++; });
+    reals.forEach(function (v) { br[Math.round(v)]++; });
+    var mx = 1; for (i = 0; i <= 10; i++) mx = Math.max(mx, be[i], br[i]);
+    var step = niceStep(mx), top = Math.ceil(mx / step) * step, grid = "";
+    var y = function (c) { return HT + HPLOT - (c / top) * HPLOT; };
+    for (var t = 0; t <= top; t += step) {
+      grid += '<line x1="' + HL + '" x2="' + (HW - HR) + '" y1="' + y(t) + '" y2="' + y(t) + '" stroke="var(--line)"/>';
+      grid += '<text class="t" x="' + (HL - 6) + '" y="' + (y(t) + 4) + '" text-anchor="end">' + t + '</text>';
+    }
+    $("hist-grid").innerHTML = grid;
+    var both = reals.length > 0, bw = both ? HGW * 0.34 : HGW * 0.5;
+    for (i = 0; i <= 10; i++) {
+      var cx = HL + i * HGW + HGW / 2, p = bars[i];
+      p.be.setAttribute("width", bw); p.be.setAttribute("x", both ? cx - bw - 1 : cx - bw / 2);
+      p.be.style.transform = "scaleY(" + (be[i] / top) + ")";
+      p.br.setAttribute("width", bw); p.br.setAttribute("x", cx + 1);
+      p.br.style.display = both ? "" : "none";
+      p.br.style.transform = "scaleY(" + (br[i] / top) + ")";
+    }
+    $("leg-real").hidden = !both;
+  }
+  function scatter(pairs) {
+    var S0 = 340, L = 34, R = 12, T = 10, B = 30;
+    var px = function (v) { return L + (v / 10) * (S0 - L - R); };
+    var py = function (v) { return S0 - B - (v / 10) * (S0 - B - T); };
+    var s = '<svg viewBox="0 0 ' + S0 + ' ' + S0 + '" role="img" aria-label="Nota esperada contra nota real de cada persona">';
+    for (var t = 0; t <= 10; t += 2) {
+      s += '<line x1="' + L + '" x2="' + (S0 - R) + '" y1="' + py(t) + '" y2="' + py(t) + '" stroke="var(--line)"/>';
+      s += '<line y1="' + T + '" y2="' + (S0 - B) + '" x1="' + px(t) + '" x2="' + px(t) + '" stroke="var(--line)"/>';
+      s += '<text class="t" x="' + (L - 6) + '" y="' + (py(t) + 4) + '" text-anchor="end">' + t + '</text>';
+      s += '<text class="t" x="' + px(t) + '" y="' + (S0 - B + 16) + '" text-anchor="middle">' + t + '</text>';
+    }
+    s += '<line x1="' + px(0) + '" y1="' + py(0) + '" x2="' + px(10) + '" y2="' + py(10) + '" stroke="var(--muted)" stroke-dasharray="4 4"/>';
+    s += '<text class="tt" x="' + (L + 8) + '" y="' + (T + 14) + '">Sacaron más de lo esperado</text>';
+    s += '<text class="tt" x="' + (S0 - R - 4) + '" y="' + (S0 - B - 8) + '" text-anchor="end">Sacaron menos</text>';
+    s += '<text class="tt" x="' + ((L + S0 - R) / 2) + '" y="' + (S0 - 2) + '" text-anchor="middle">Nota esperada</text>';
+    s += '<text class="tt" transform="translate(10 ' + ((T + S0 - B) / 2) + ') rotate(-90)" text-anchor="middle">Nota real</text>';
+    pairs.forEach(function (p) {
+      var d = p.expected - p.real;
+      var c = d > HIT ? "var(--over)" : d < -HIT ? "var(--under)" : "var(--hit)";
+      s += '<circle cx="' + px(p.expected) + '" cy="' + py(p.real) + '" r="6" fill="' + c + '" fill-opacity=".6" stroke="' + c + '"/>';
+    });
+    return s + '</svg>';
+  }
+
+  /* ---------- resultados ---------- */
+  function showEmpty(html) { $("r-empty").innerHTML = html; $("r-empty").hidden = false; $("r-live").hidden = true; }
+  function renderResults() {
+    var rows = S.rows, n = rows.length;
+    $("count").textContent = S.loaded && n ? String(n) : "";
+    if (S.updated) $("r-time").textContent = "Actualizado " + S.updated;
+    if (!S.loaded) { showEmpty('<p>Cargando respuestas…</p>'); return; }
+    if (n < MIN_SHOWN) {
+      showEmpty('<h2>Todavía hay pocas respuestas</h2><p>El gráfico aparece desde ' + MIN_SHOWN + ' respuestas, para que nadie pueda reconocer la suya. Van ' + n + '. Esta pantalla se actualiza sola.</p>');
+      return;
+    }
+    $("r-empty").hidden = true; $("r-live").hidden = false;
+    var exps = rows.map(function (r) { return r.expected; });
+    var pairs = rows.filter(function (r) { return r.real != null; });
+    var m = pairs.length, showPairs = m >= MIN_SHOWN;
+    var avgE = avg(exps), avgEp = avg(pairs.map(function (r) { return r.expected; })), avgR = avg(pairs.map(function (r) { return r.real; }));
+    $("r-stats").innerHTML =
+      '<div class="stat"><div class="v">' + n + '</div><div class="k">respuestas</div></div>' +
+      '<div class="stat"><div class="v">' + m + '</div><div class="k">ya cargaron la nota real</div></div>' +
+      '<div class="stat"><div class="v" style="color:var(--exp)">' + fmt(avgE) + '</div><div class="k">promedio esperado</div></div>' +
+      '<div class="stat"><div class="v" style="color:var(--real)">' + (showPairs ? fmt(avgR) : "–") + '</div><div class="k">promedio real</div></div>';
+    var sm = $("r-summary");
+    if (showPairs) {
+      var diff = avgR - avgEp, ad = Math.abs(diff);
+      sm.innerHTML = ad < 0.1
+        ? 'En promedio, la nota real fue <b>casi igual</b> a la esperada (' + fmt(avgEp) + ' contra ' + fmt(avgR) + ').'
+        : 'En promedio esperaban <b>' + fmt(avgEp) + '</b> y sacaron <b>' + fmt(avgR) + '</b>: ' + (diff < 0 ? 'se pasaron' : 'se quedaron cortos') + ' por ' + fmt(ad) + ' puntos.';
+      sm.hidden = false;
+    } else sm.hidden = true;
+    updateHist(exps, showPairs ? pairs.map(function (r) { return r.real; }) : []);
+    $("hist-note").textContent = showPairs ? "" : (phase() === "pre"
+      ? "La nota real se carga desde las 14:00. Las barras de notas reales aparecen cuando haya al menos " + MIN_SHOWN + "."
+      : "Las barras de notas reales aparecen cuando haya al menos " + MIN_SHOWN + " cargadas. Hoy hay " + m + ".");
+    var h = "";
+    if (showPairs) {
+      var over = 0, under = 0, hit = 0;
+      pairs.forEach(function (r) { var d = r.expected - r.real; if (d > HIT) over++; else if (d < -HIT) under++; else hit++; });
+      var pct = function (k) { return Math.round((k / m) * 100); };
+      h += '<div class="charts">';
+      h += '<div class="card"><h2>Cada punto es una persona</h2>' + scatter(pairs) + '<p class="hint">Sobre la línea punteada, la nota real coincide con la esperada. Rojo: esperaban más de lo que sacaron. Verde: sacaron más de lo esperado.</p></div>';
+      h += '<div class="card"><h2>Qué tanto acertaron</h2>';
+      h += '<div class="stack" role="img" aria-label="Porcentaje que esperó de más, acertó y esperó de menos">';
+      h += '<div style="width:' + (over / m * 100) + '%;background:var(--over)"></div><div style="width:' + (hit / m * 100) + '%;background:var(--hit)"></div><div style="width:' + (under / m * 100) + '%;background:var(--under)"></div></div>';
+      h += '<div class="outcomes">';
+      h += '<div><span><span class="legend"><i style="background:var(--over)"></i></span>Esperaban más de lo que sacaron</span><b>' + over + ' · ' + pct(over) + '%</b></div>';
+      h += '<div><span><span class="legend"><i style="background:var(--hit)"></i></span>Acertaron (diferencia de hasta ' + fmt(HIT) + ')</span><b>' + hit + ' · ' + pct(hit) + '%</b></div>';
+      h += '<div><span><span class="legend"><i style="background:var(--under)"></i></span>Sacaron más de lo que esperaban</span><b>' + under + ' · ' + pct(under) + '%</b></div>';
+      h += '</div></div></div>';
+    }
+    $("r-pairs").innerHTML = h;
+  }
+
+  /* ---------- pestañas y presentación ---------- */
+  function renderTabs() {
+    var isPar = S.tab === "par";
+    $("tab-par").setAttribute("aria-selected", String(isPar));
+    $("tab-res").setAttribute("aria-selected", String(!isPar));
+    $("panel-par").hidden = !isPar;
+    $("panel-res").hidden = isPar;
+    document.body.classList.toggle("present", S.present);
+    $("present").textContent = S.present ? "Salir de presentación" : "Modo presentación";
+  }
+  $("tab-par").addEventListener("click", function () { S.tab = "par"; renderTabs(); });
+  $("tab-res").addEventListener("click", function () { S.tab = "res"; renderTabs(); });
+  $("present").addEventListener("click", function () { S.present = !S.present; S.tab = "res"; renderTabs(); });
+  $("save-exp").addEventListener("click", saveExpected);
+  $("save-real").addEventListener("click", saveReal);
+  $("exp").addEventListener("input", function () { this.dataset.dirty = "1"; });
+  $("real").addEventListener("input", function () { this.dataset.dirty = "1"; });
+  $("exp").addEventListener("keydown", function (e) { if (e.key === "Enter") saveExpected(); });
+  $("real").addEventListener("keydown", function (e) { if (e.key === "Enter") saveReal(); });
+  $("del-zone").addEventListener("click", function (e) {
+    var id = e.target && e.target.id;
+    if (id === "del") { S.confirmDel = true; renderParticipate(); }
+    else if (id === "del-no") { S.confirmDel = false; renderParticipate(); }
+    else if (id === "del-yes") deleteMine();
+  });
+
+  /* ---------- arranque ---------- */
+  function renderAll() { renderTabs(); renderStatus(); renderParticipate(); renderResults(); }
+  function init() {
+    buildHist();
+    renderAll();
+    S.phase = phase();
+    
+    // Poll de respuestas cada 5 segundos para actualizar "En vivo"
+    fetchResponses();
+    setInterval(fetchResponses, 5000);
+
+    setInterval(function () {
+      var p = phase();
+      if (p !== S.phase) { S.phase = p; renderParticipate(); renderResults(); }
+      else if (p === "pre") renderPhase();
+    }, 1000);
+  }
+  init();
+})();
+</script>
+
+</body></html>

@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panel Administrador Backend - Expectativa de Nota</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Fonts -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    body {
+      font-family: 'Public Sans', system-ui, -apple-system, sans-serif;
+    }
+    .font-mono {
+      font-family: 'IBM Plex Mono', monospace;
+    }
+    .chart-container {
+      position: relative;
+      width: 100%;
+      max-width: 100%;
+      height: 280px;
+      max-height: 320px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    @media (min-width: 768px) {
+      .chart-container {
+        height: 320px;
+      }
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+  </style>
+</head>
+<body class="h-full flex flex-col bg-slate-950 text-slate-100 antialiased selection:bg-indigo-500 selection:text-white">
+
+  <!-- Chosen Palette: Slate Dark theme with Indigo (Expected), Amber/Gold (Real), Emerald (Underestimated/Positive), and Rose (Overestimated/Negative) accents. -->
+
+  <!-- Application Structure Plan:
+       1. Encabezado Global y Control de API:
+          - Estado de conexión con Netlify Function.
+          - Selector de frecuencia de actualización automática (polling).
+          - Modificador de datos (Modo API Real vs Modo Simulación Demo para pruebas locales sin backend).
+       2. Tarjetas KPI de Resumen Estadístico:
+          - Total de Respuestas, Promedio Esperado, Promedio Real y Diferencia / Sesgo Promedio.
+       3. Navegación por Pestañas del Panel:
+          - Pestaña 1: "Analítica Visual" -> Histogramas de notas, Scatter plot de dispersión (esperada vs real), Distribución de aciertos y Línea temporal de entregas.
+          - Pestaña 2: "Gestión de Datos" -> Tabla filtrable y ordenable con las respuestas de alumnos, eliminación individual, exportación a CSV/JSON.
+          - Pestaña 3: "Simulación y Ajustes" -> Generador masivo de alumnos de prueba, modificación del horario límite (Cutoff) e higienización de la base de datos.
+       4. Textos introductorios explicativos en cada sección para maximizar la claridad en la toma de decisiones.
+  -->
+
+  <!-- Visualization & Content Choices:
+       - Comparación de Distribución de Notas -> Chart.js Bar Chart (Canvas) con barras superpuestas/agrupadas (Esperada vs Real).
+       - Correlación Indivudual (Esperada vs Real) -> Chart.js Scatter Chart (Canvas) con línea diagonal ideal y puntos coloreados según sesgo.
+       - Proporción de Sesgo de Alumnos -> Chart.js Doughnut Chart (Canvas) clasificando en "Sobreestimaron", "Acertaron" y "Subestimaron".
+       - Línea Temporal de Envío -> Chart.js Line Chart (Canvas) agregando respuestas por rangos horarios respecto a las 14:00hs.
+       - CONFIRMACIÓN: Sin gráficos SVG. Sin diagramas Mermaid JS. Modificación directa en canvas responsivos.
+  -->
+
+  <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+  <div class="min-h-full flex flex-col max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- Header Principal -->
+    <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-5 border-b border-slate-800">
+      <div>
+        <div class="flex items-center gap-2 mb-1">
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+            Netlify Store Admin
+          </span>
+          <span id="api-status-badge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            API Conectada
+          </span>
+        </div>
+        <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-white">Panel Administrador Backend</h1>
+        <p class="text-sm text-slate-400 mt-1">
+          Monitoreo, análisis estadístico y gestión en tiempo real de la encuesta de expectativa de nota.
+        </p>
+      </div>
+
+      <!-- Barra de Controles Rápidos -->
+      <div class="flex flex-wrap items-center gap-2 sm:gap-3 bg-slate-900/80 p-2 rounded-xl border border-slate-800">
+        <button id="btn-manual-refresh" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+          <span>🔄</span> Recargar
+        </button>
+        <div class="flex items-center gap-1.5 px-2 text-xs text-slate-400">
+          <label for="poll-interval" class="hidden sm:inline">Auto-refresh:</label>
+          <select id="poll-interval" class="bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-500">
+            <option value="5000">5 seg</option>
+            <option value="15000">15 seg</option>
+            <option value="30000">30 seg</option>
+            <option value="0">Desactivado</option>
+          </select>
+        </div>
+        <label class="inline-flex items-center gap-2 cursor-pointer px-2 py-1 rounded-lg hover:bg-slate-800/50 text-xs text-slate-300">
+          <input type="checkbox" id="toggle-demo-mode" class="sr-only peer">
+          <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-indigo-600 relative"></div>
+          <span class="font-mono text-[11px]">Modo Demo</span>
+        </label>
+      </div>
+    </header>
+
+    <!-- KPI Summary Dashboard Row -->
+    <section aria-label="Métricas Principales">
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- KPI 1 -->
+        <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-4 flex flex-col justify-between">
+          <div class="text-xs font-mono uppercase tracking-wider text-slate-400 mb-1">Registros Totales</div>
+          <div class="flex items-baseline justify-between mt-2">
+            <span id="kpi-total-count" class="text-3xl font-bold font-mono text-white">0</span>
+            <span class="text-xs text-slate-500 font-mono">alumnos</span>
+          </div>
+          <div class="mt-3 text-[11px] text-slate-400 border-t border-slate-800/60 pt-2 flex justify-between">
+            <span>Nota Esperada: <b id="kpi-exp-count" class="text-indigo-400">0</b></span>
+            <span>Nota Real: <b id="kpi-real-count" class="text-amber-400">0</b></span>
+          </div>
+        </div>
+
+        <!-- KPI 2 -->
+        <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-4 flex flex-col justify-between">
+          <div class="text-xs font-mono uppercase tracking-wider text-slate-400 mb-1">Promedio Esperado</div>
+          <div class="flex items-baseline justify-between mt-2">
+            <span id="kpi-avg-exp" class="text-3xl font-bold font-mono text-indigo-400">-</span>
+            <span class="text-xs text-indigo-300/70 font-mono">/ 10.0</span>
+          </div>
+          <div class="mt-3 text-[11px] text-slate-400 border-t border-slate-800/60 pt-2 flex justify-between">
+            <span>Mediana: <b id="kpi-med-exp" class="text-slate-200">-</b></span>
+            <span>Desv. Est: <b id="kpi-std-exp" class="text-slate-200">-</b></span>
+          </div>
+        </div>
+
+        <!-- KPI 3 -->
+        <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-4 flex flex-col justify-between">
+          <div class="text-xs font-mono uppercase tracking-wider text-slate-400 mb-1">Promedio Real</div>
+          <div class="flex items-baseline justify-between mt-2">
+            <span id="kpi-avg-real" class="text-3xl font-bold font-mono text-amber-400">-</span>
+            <span class="text-xs text-amber-300/70 font-mono">/ 10.0</span>
+          </div>
+          <div class="mt-3 text-[11px] text-slate-400 border-t border-slate-800/60 pt-2 flex justify-between">
+            <span>Mediana: <b id="kpi-med-real" class="text-slate-200">-</b></span>
+            <span>Desv. Est: <b id="kpi-std-real" class="text-slate-200">-</b></span>
+          </div>
+        </div>
+
+        <!-- KPI 4 -->
+        <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-4 flex flex-col justify-between">
+          <div class="text-xs font-mono uppercase tracking-wider text-slate-400 mb-1">Sesgo / Discrepancia</div>
+          <div class="flex items-baseline justify-between mt-2">
+            <span id="kpi-bias-val" class="text-3xl font-bold font-mono text-emerald-400">-</span>
+            <span id="kpi-bias-label" class="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">-</span>
+          </div>
+          <div class="mt-3 text-[11px] text-slate-400 border-t border-slate-800/60 pt-2 flex justify-between">
+            <span>Mayor sobreestimación: <b id="kpi-max-over" class="text-rose-400">-</b></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- NAVEGACIÓN POR PESTAÑAS -->
+    <nav class="flex border-b border-slate-800 gap-2 sm:gap-6" aria-label="Pestañas de Navegación">
+      <button id="tab-btn-analytics" class="tab-btn border-b-2 border-indigo-500 text-indigo-400 font-semibold px-3 py-2.5 text-sm flex items-center gap-2 transition" data-target="tab-analytics">
+        <span>📊</span> Analítica Visual
+      </button>
+      <button id="tab-btn-data" class="tab-btn border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-semibold px-3 py-2.5 text-sm flex items-center gap-2 transition" data-target="tab-data">
+        <span>📋</span> Gestión de Respuestas (<span id="tab-count-badge">0</span>)
+      </button>
+      <button id="tab-btn-settings" class="tab-btn border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-semibold px-3 py-2.5 text-sm flex items-center gap-2 transition" data-target="tab-settings">
+        <span>⚙️</span> Simulación y Ajustes
+      </button>
+    </nav>
+
+    <!-- CONTENIDO PESTAÑA 1: ANALÍTICA VISUAL -->
+    <section id="tab-analytics" class="tab-content space-y-6">
+      <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 text-sm text-slate-300">
+        <p class="font-semibold text-slate-100 mb-1">💡 Guía de interpretación analítica:</p>
+        <p>Esta sección consolida las respuestas recibidas en gráficos explicativos. Compara las expectativas previas al examen con las calificaciones finales para identificar tendencias de exceso de confianza o subestimación colectiva.</p>
+      </div>
+
+      <!-- Gráficos Fila 1 -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Chart 1: Histograma Comparativo -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <span>📈</span> Distribución de Notas (Esperada vs Real)
+              </h3>
+              <span class="text-xs font-mono text-slate-400">Escala 0 - 10</span>
+            </div>
+            <p class="text-xs text-slate-400 mb-4">Número de alumnos agrupados según la calificación esperada y obtenida.</p>
+          </div>
+          <div class="chart-container">
+            <canvas id="chart-histogram"></canvas>
+          </div>
+        </div>
+
+        <!-- Chart 2: Scatter Plot Correlación -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <span>🎯</span> Correlación Individual (Matriz de Calificación)
+              </h3>
+              <span class="text-xs font-mono text-slate-400">Línea de Equidad (y = x)</span>
+            </div>
+            <p class="text-xs text-slate-400 mb-4">Cada punto representa a un alumno. Los puntos sobre la diagonal obtuvieron más nota de la esperada.</p>
+          </div>
+          <div class="chart-container">
+            <canvas id="chart-scatter"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gráficos Fila 2 -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Chart 3: Donut Sesgo -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between md:col-span-1">
+          <div>
+            <h3 class="text-base font-bold text-white mb-1 flex items-center gap-2">
+              <span>🥧</span> Precisión de la Expectativa
+            </h3>
+            <p class="text-xs text-slate-400 mb-3">Clasificación según margen de error (Tolerancia ±0.5 pts).</p>
+          </div>
+          <div class="chart-container !h-56">
+            <canvas id="chart-pie-bias"></canvas>
+          </div>
+          <div id="bias-legend-list" class="mt-3 space-y-1 text-xs text-slate-300 font-mono border-t border-slate-800 pt-3">
+            <!-- Se llena dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Chart 4: Línea Temporal de Respuestas -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between md:col-span-2">
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <span>🕒</span> Flujo Temporal de Respuestas
+              </h3>
+              <span class="text-xs font-mono text-indigo-400">Cutoff 14:00 hs</span>
+            </div>
+            <p class="text-xs text-slate-400 mb-3">Registro de actividad del alumnado antes y después del hito de entrega de notas.</p>
+          </div>
+          <div class="chart-container !h-56">
+            <canvas id="chart-timeline"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTENIDO PESTAÑA 2: GESTIÓN DE DATOS -->
+    <section id="tab-data" class="tab-content space-y-4 hidden">
+      <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 text-sm text-slate-300 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <p class="font-semibold text-slate-100">📋 Registros Almacenados en el Servidor</p>
+          <p class="text-xs text-slate-400">Inspecciona las respuestas individuales enviadas por cada identificador de navegador anonimizado.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btn-export-csv" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center gap-1">
+            <span>📥</span> Exportar CSV
+          </button>
+          <button id="btn-export-json" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1">
+            <span>📦</span> JSON Raw
+          </button>
+        </div>
+      </div>
+
+      <!-- Filtros y Búsqueda -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-900 border border-slate-800 p-3 rounded-xl">
+        <div>
+          <label for="search-user" class="block text-xs font-mono text-slate-400 mb-1">Buscar por User ID:</label>
+          <input type="text" id="search-user" placeholder="Ej: user_x82a..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono">
+        </div>
+        <div>
+          <label for="filter-bias" class="block text-xs font-mono text-slate-400 mb-1">Filtrar por Resultado:</label>
+          <select id="filter-bias" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500">
+            <option value="all">Todos los registros</option>
+            <option value="over">Esperaban más de lo que sacaron (Sobreestimaron)</option>
+            <option value="under">Sacaron más de lo esperado (Subestimaron)</option>
+            <option value="hit">Acertaron la nota (±0.5 pts)</option>
+            <option value="pending">Sin Nota Real cargada aún</option>
+          </select>
+        </div>
+        <div>
+          <label for="sort-order" class="block text-xs font-mono text-slate-400 mb-1">Ordenar por:</label>
+          <select id="sort-order" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500">
+            <option value="t-desc">Fecha / Hora (Más recientes primero)</option>
+            <option value="t-asc">Fecha / Hora (Más antiguos primero)</option>
+            <option value="exp-desc">Nota Esperada (Mayor a Menor)</option>
+            <option value="real-desc">Nota Real (Mayor a Menor)</option>
+            <option value="diff-desc">Mayor discrepancia negativa</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Tabla de Datos -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-950 border-b border-slate-800 font-mono text-slate-400 uppercase tracking-wider">
+              <tr>
+                <th class="py-3 px-4">User ID (Hash)</th>
+                <th class="py-3 px-4 text-center">Nota Esperada</th>
+                <th class="py-3 px-4 text-center">Nota Real</th>
+                <th class="py-3 px-4 text-center">Diferencia</th>
+                <th class="py-3 px-4">Fecha / Hora</th>
+                <th class="py-3 px-4 text-right">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="table-rows" class="divide-y divide-slate-800/60 text-slate-200">
+              <tr>
+                <td colspan="6" class="py-8 text-center text-slate-500 font-mono">Cargando registros del servidor...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTENIDO PESTAÑA 3: SIMULACIÓN Y AJUSTES -->
+    <section id="tab-settings" class="tab-content space-y-6 hidden">
+      <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 text-sm text-slate-300">
+        <p class="font-semibold text-slate-100 mb-1">⚙️ Herramientas de Administración y Pruebas</p>
+        <p class="text-xs text-slate-400">Utiliza estas utilidades para probar la interfaz, inyectar respuestas de prueba simuladas o purgar la base de datos de Netlify.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Panel de Inyección de Datos Demo -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <span>🧪</span> Generador de Alumnos Simulado
+          </h3>
+          <p class="text-xs text-slate-400">Genera respuestas aleatorias con distribución normal simétrica para evaluar el comportamiento visual de las gráficas.</p>
+          
+          <div class="flex items-center gap-3">
+            <button id="btn-gen-5" class="px-3 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition flex-1">
+              +5 Alumnos
+            </button>
+            <button id="btn-gen-20" class="px-3 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition flex-1">
+              +20 Alumnos
+            </button>
+          </div>
+          <p class="text-[11px] text-slate-500">Nota: Si el Modo Demo está activado, los registros solo afectarán la memoria local del navegador.</p>
+        </div>
+
+        <!-- Panel de Configuración de Límite Temporal -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <span>⏱️</span> Control de Horario Límite (Cutoff)
+          </h3>
+          <p class="text-xs text-slate-400">Configura la hora oficial de publicación de notas para la habilitación del paso 2 en los clientes.</p>
+
+          <div class="space-y-2">
+            <label for="cutoff-input" class="block text-xs font-mono text-slate-400">Fecha y Hora Límite:</label>
+            <input type="datetime-local" id="cutoff-input" value="2026-10-22T14:00" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono w-full">
+          </div>
+          <button id="btn-save-cutoff" class="px-3 py-2 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition w-full">
+            Guardar Cambio de Horario
+          </button>
+        </div>
+      </div>
+
+      <!-- Zona de Peligro -->
+      <div class="bg-rose-950/30 border border-rose-900/50 rounded-xl p-5 space-y-4">
+        <h3 class="text-base font-bold text-rose-300 flex items-center gap-2">
+          <span>⚠️</span> Zona de Peligro / Mantenimiento
+        </h3>
+        <p class="text-xs text-rose-200/70">
+          Esta acción eliminará todas las respuestas guardadas en la base de datos de Netlify Store. Esta operación no se puede deshacer.
+        </p>
+        <div>
+          <button id="btn-purge-all" class="px-4 py-2 text-xs font-bold rounded-lg bg-rose-600 hover:bg-rose-500 text-white transition">
+            🔥 Vaciar Todos los Registros
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="mt-auto pt-6 border-t border-slate-800 text-center text-xs text-slate-500 font-mono flex flex-col sm:flex-row justify-between items-center gap-2">
+      <div>Sistema de Evaluación de Expectativas v2.4</div>
+      <div id="footer-last-sync">Última sincronización: -</div>
+    </footer>
+  </div>
+
+  <!-- SCRIPT LÓGICO DEL PANEL ADMIN -->
+  <script>
+  (function () {
+    var API_URL = "/.netlify/functions/responses";
+    var CUTOFF = Date.parse("2026-10-22T14:00:00-03:00");
+    var TOLERANCE = 0.5;
+
+    // Estado Global de la Aplicación
+    var S = {
+      rows: [],
+      useDemo: false,
+      autoRefresh: true,
+      pollMs: 5000,
+      pollTimer: null,
+      activeTab: "tab-analytics",
+      searchUser: "",
+      filterBias: "all",
+      sortOrder: "t-desc",
+      charts: {}
+    };
+
+    var $ = function (id) { return document.getElementById(id); };
+
+    // --- MOCK DATA FOR DEMO MODE ---
+    function generateMockData(count) {
+      var arr = [];
+      var now = Date.now();
+      for (var i = 0; i < count; i++) {
+        var exp = Math.min(10, Math.max(2, Math.round((6.8 + (Math.random() * 4 - 2)) * 10) / 10));
+        var hasReal = Math.random() > 0.2;
+        var real = hasReal ? Math.min(10, Math.max(1, Math.round((exp + (Math.random() * 3.6 - 2.1)) * 10) / 10)) : null;
+        arr.push({
+          userId: "demo_usr_" + Math.random().toString(36).substr(2, 7),
+          expected: exp,
+          real: real,
+          t: new Date(now - Math.floor(Math.random() * 3600000 * 8)).toISOString()
+        });
+      }
+      return arr;
+    }
+
+    // Initialize initial demo dataset if empty
+    var demoDataset = generateMockData(18);
+
+    // --- API & DATA FETCHING ---
+    async function loadData() {
+      if (S.useDemo) {
+        S.rows = demoDataset;
+        updateUI();
+        $("api-status-badge").className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20";
+        $("api-status-badge").innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-400"></span> Modo Demo (Local)';
+        return;
+      }
+
+      try {
+        var res = await fetch(API_URL);
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        var data = await res.json();
+        S.rows = data;
+        $("api-status-badge").className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+        $("api-status-badge").innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> API Conectada';
+      } catch (e) {
+        console.warn("Fallo al conectar con la API real. Conmutando a modo simulación.", e);
+        S.useDemo = true;
+        $("toggle-demo-mode").checked = true;
+        S.rows = demoDataset;
+        $("api-status-badge").className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20";
+        $("api-status-badge").innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-400"></span> Modo Fallback (Demo)';
+      }
+      updateUI();
+    }
+
+    async function deleteSingleUser(userId) {
+      if (!confirm("¿Confirma la eliminación del registro para el ID: " + userId + "?")) return;
+      
+      if (S.useDemo) {
+        demoDataset = demoDataset.filter(function(r){ return r.userId !== userId; });
+        loadData();
+        return;
+      }
+
+      try {
+        await fetch(API_URL, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: userId })
+        });
+        loadData();
+      } catch (e) {
+        alert("Error al eliminar la respuesta del servidor.");
+      }
+    }
+
+    // --- CALCULOS ESTADÍSTICOS ---
+    function calcStats(data) {
+      var exps = data.map(function(r){ return r.expected; }).filter(function(v){ return v != null; });
+      var reals = data.map(function(r){ return r.real; }).filter(function(v){ return v != null; });
+      var pairs = data.filter(function(r){ return r.expected != null && r.real != null; });
+
+      var mean = function(arr) { return arr.length ? arr.reduce(function(a,b){return a+b;},0)/arr.length : null; };
+      var median = function(arr) {
+        if (!arr.length) return null;
+        var s = arr.slice().sort(function(a,b){return a-b;});
+        var m = Math.floor(s.length/2);
+        return s.length % 2 !== 0 ? s[m] : (s[m-1] + s[m])/2;
+      };
+      var stdDev = function(arr, m) {
+        if (arr.length < 2) return 0;
+        var variance = arr.reduce(function(a,b){ return a + Math.pow(b - m, 2); }, 0) / (arr.length - 1);
+        return Math.sqrt(variance);
+      };
+
+      var avgExp = mean(exps);
+      var avgReal = mean(reals);
+      var bias = (avgReal != null && avgExp != null) ? avgReal - avgExp : null;
+
+      var overCount = 0, underCount = 0, hitCount = 0;
+      var maxOver = 0;
+
+      pairs.forEach(function(r){
+        var d = r.expected - r.real; // Diferencia positiva = esperaba mas de lo que saco
+        if (d > maxOver) maxOver = d;
+        if (d > TOLERANCE) overCount++;
+        else if (d < -TOLERANCE) underCount++;
+        else hitCount++;
+      });
+
+      return {
+        total: data.length,
+        expCount: exps.length,
+        realCount: reals.length,
+        avgExp: avgExp,
+        medExp: median(exps),
+        stdExp: stdDev(exps, avgExp || 0),
+        avgReal: avgReal,
+        medReal: median(reals),
+        stdReal: stdDev(reals, avgReal || 0),
+        bias: bias,
+        overCount: overCount,
+        underCount: underCount,
+        hitCount: hitCount,
+        maxOver: maxOver,
+        pairsCount: pairs.length
+      };
+    }
+
+    // --- ACTUALIZACIÓN DE UI ---
+    function updateUI() {
+      var stats = calcStats(S.rows);
+
+      // 1. KPIs
+      $("kpi-total-count").textContent = stats.total;
+      $("kpi-exp-count").textContent = stats.expCount;
+      $("kpi-real-count").textContent = stats.realCount;
+      $("tab-count-badge").textContent = stats.total;
+
+      $("kpi-avg-exp").textContent = stats.avgExp != null ? stats.avgExp.toFixed(1) : "-";
+      $("kpi-med-exp").textContent = stats.medExp != null ? stats.medExp.toFixed(1) : "-";
+      $("kpi-std-exp").textContent = stats.stdExp != null ? stats.stdExp.toFixed(2) : "-";
+
+      $("kpi-avg-real").textContent = stats.avgReal != null ? stats.avgReal.toFixed(1) : "-";
+      $("kpi-med-real").textContent = stats.medReal != null ? stats.medReal.toFixed(1) : "-";
+      $("kpi-std-real").textContent = stats.stdReal != null ? stats.stdReal.toFixed(2) : "-";
+
+      if (stats.bias != null) {
+        var bVal = stats.bias;
+        $("kpi-bias-val").textContent = (bVal > 0 ? "+" : "") + bVal.toFixed(1);
+        $("kpi-bias-val").className = "text-3xl font-bold font-mono " + (bVal >= 0 ? "text-emerald-400" : "text-rose-400");
+        $("kpi-bias-label").textContent = bVal >= 0 ? "Sacaron más de lo esperado" : "Sobreestimación de nota";
+      } else {
+        $("kpi-bias-val").textContent = "-";
+        $("kpi-bias-label").textContent = "Sin datos reales";
+      }
+      $("kpi-max-over").textContent = stats.maxOver > 0 ? "+" + stats.maxOver.toFixed(1) + " pts" : "0 pts";
+
+      $("footer-last-sync").textContent = "Última sincronización: " + new Date().toLocaleTimeString("es-AR");
+
+      // 2. Renderizar Pestaña Activa
+      if (S.activeTab === "tab-analytics") renderAnalyticsCharts(stats);
+      else if (S.activeTab === "tab-data") renderDataTable();
+    }
+
+    // --- GRÁFICOS (CHART.JS) ---
+    function renderAnalyticsCharts(stats) {
+      // Configuración Global de Chart.js para Tema Oscuro
+      Chart.defaults.color = '#94a3b8';
+      Chart.defaults.font.family = "'IBM Plex Mono', monospace";
+
+      // 1. HISTOGRAMA
+      var ctxHist = $("chart-histogram").getContext("2d");
+      var expFreq = Array(11).fill(0);
+      var realFreq = Array(11).fill(0);
+
+      S.rows.forEach(function(r) {
+        if (r.expected != null) expFreq[Math.round(r.expected)]++;
+        if (r.real != null) realFreq[Math.round(r.real)]++;
+      });
+
+      if (S.charts.hist) S.charts.hist.destroy();
+      S.charts.hist = new Chart(ctxHist, {
+        type: 'bar',
+        data: {
+          labels: ['0','1','2','3','4','5','6','7','8','9','10'],
+          datasets: [
+            {
+              label: 'Nota Esperada',
+              data: expFreq,
+              backgroundColor: 'rgba(99, 102, 241, 0.7)',
+              borderColor: '#6366f1',
+              borderWidth: 1,
+              borderRadius: 4
+            },
+            {
+              label: 'Nota Real',
+              data: realFreq,
+              backgroundColor: 'rgba(245, 158, 11, 0.7)',
+              borderColor: '#f59e0b',
+              borderWidth: 1,
+              borderRadius: 4
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'top', labels: { boxWidth: 12 } }
+          },
+          scales: {
+            x: { grid: { color: 'rgba(51, 65, 85, 0.3)' } },
+            y: { grid: { color: 'rgba(51, 65, 85, 0.3)' }, beginAtZero: true, ticks: { precision: 0 } }
+          }
+        }
+      });
+
+      // 2. SCATTER PLOT
+      var ctxScatter = $("chart-scatter").getContext("2d");
+      var scatterData = S.rows.filter(function(r){ return r.expected != null && r.real != null; }).map(function(r){
+        return { x: r.expected, y: r.real };
+      });
+
+      if (S.charts.scatter) S.charts.scatter.destroy();
+      S.charts.scatter = new Chart(ctxScatter, {
+        type: 'scatter',
+        data: {
+          datasets: [
+            {
+              label: 'Alumnos',
+              data: scatterData,
+              backgroundColor: 'rgba(16, 185, 129, 0.8)',
+              borderColor: '#10b981',
+              pointRadius: 6,
+              pointHoverRadius: 8
+            },
+            {
+              label: 'Línea de Equidad (y=x)',
+              data: [{x:0, y:0}, {x:10, y:10}],
+              type: 'line',
+              borderColor: 'rgba(148, 163, 184, 0.4)',
+              borderDash: [5, 5],
+              fill: false,
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'top', labels: { boxWidth: 12 } },
+            tooltip: {
+              callbacks: {
+                label: function(ctx) { return 'Esperó: ' + ctx.raw.x + ' | Sacó: ' + ctx.raw.y; }
+              }
+            }
+          },
+          scales: {
+            x: { min: 0, max: 10, title: { display: true, text: 'Nota Esperada' }, grid: { color: 'rgba(51, 65, 85, 0.3)' } },
+            y: { min: 0, max: 10, title: { display: true, text: 'Nota Real' }, grid: { color: 'rgba(51, 65, 85, 0.3)' } }
+          }
+        }
+      });
+
+      // 3. PIE / DONUT DE SESGO
+      var ctxPie = $("chart-pie-bias").getContext("2d");
+      if (S.charts.pie) S.charts.pie.destroy();
+      S.charts.pie = new Chart(ctxPie, {
+        type: 'doughnut',
+        data: {
+          labels: ['Sobreestimaron', 'Acertaron (±0.5)', 'Subestimaron'],
+          datasets: [{
+            data: [stats.overCount, stats.hitCount, stats.underCount],
+            backgroundColor: ['#f43f5e', '#64748b', '#10b981'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          cutout: '68%'
+        }
+      });
+
+      var totalP = stats.pairsCount || 1;
+      $("bias-legend-list").innerHTML =
+        '<div class="flex justify-between items-center"><span class="flex items-center gap-1.5"><i class="w-2.5 h-2.5 rounded-sm bg-rose-500 inline-block"></i>Sobreestimaron:</span><b>' + stats.overCount + ' (' + Math.round(stats.overCount/totalP*100) + '%)</b></div>' +
+        '<div class="flex justify-between items-center"><span class="flex items-center gap-1.5"><i class="w-2.5 h-2.5 rounded-sm bg-slate-500 inline-block"></i>Acertaron:</span><b>' + stats.hitCount + ' (' + Math.round(stats.hitCount/totalP*100) + '%)</b></div>' +
+        '<div class="flex justify-between items-center"><span class="flex items-center gap-1.5"><i class="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block"></i>Subestimaron:</span><b>' + stats.underCount + ' (' + Math.round(stats.underCount/totalP*100) + '%)</b></div>';
+
+      // 4. LÍNEA TEMPORAL
+      var ctxTime = $("chart-timeline").getContext("2d");
+      // Agrupar respuestas por hora aproximada
+      var timeMap = {};
+      S.rows.forEach(function(r) {
+        if (!r.t) return;
+        var hour = new Date(r.t).getHours() + ":00";
+        timeMap[hour] = (timeMap[hour] || 0) + 1;
+      });
+
+      var timeLabels = Object.keys(timeMap).sort();
+      var timeValues = timeLabels.map(function(k){ return timeMap[k]; });
+
+      if (S.charts.time) S.charts.time.destroy();
+      S.charts.time = new Chart(ctxTime, {
+        type: 'line',
+        data: {
+          labels: timeLabels.length ? timeLabels : ['10:00', '12:00', '14:00', '16:00'],
+          datasets: [{
+            label: 'Respuestas Recibidas',
+            data: timeValues.length ? timeValues : [2, 5, 12, 4],
+            borderColor: '#818cf8',
+            backgroundColor: 'rgba(129, 140, 248, 0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { color: 'rgba(51, 65, 85, 0.3)' } },
+            y: { grid: { color: 'rgba(51, 65, 85, 0.3)' }, beginAtZero: true, ticks: { precision: 0 } }
+          }
+        }
+      });
+    }
+
+    // --- TABLA DE DATOS FILTRABLE ---
+    function renderDataTable() {
+      var filtered = S.rows.filter(function(r) {
+        // Filtro por User ID
+        if (S.searchUser && !r.userId.toLowerCase().includes(S.searchUser.toLowerCase())) {
+          return false;
+        }
+        // Filtro por Sesgo
+        if (S.filterBias !== "all") {
+          if (S.filterBias === "pending") return r.real == null;
+          if (r.real == null) return false;
+          var diff = r.expected - r.real;
+          if (S.filterBias === "over") return diff > TOLERANCE;
+          if (S.filterBias === "under") return diff < -TOLERANCE;
+          if (S.filterBias === "hit") return Math.abs(diff) <= TOLERANCE;
+        }
+        return true;
+      });
+
+      // Ordenamiento
+      filtered.sort(function(a, b) {
+        if (S.sortOrder === "t-desc") return new Date(b.t || 0) - new Date(a.t || 0);
+        if (S.sortOrder === "t-asc") return new Date(a.t || 0) - new Date(b.t || 0);
+        if (S.sortOrder === "exp-desc") return (b.expected || 0) - (a.expected || 0);
+        if (S.sortOrder === "real-desc") return (b.real || 0) - (a.real || 0);
+        if (S.sortOrder === "diff-desc") {
+          var da = (a.expected != null && a.real != null) ? (a.expected - a.real) : -999;
+          var db = (b.expected != null && b.real != null) ? (b.expected - b.real) : -999;
+          return db - da;
+        }
+        return 0;
+      });
+
+      var tbody = $("table-rows");
+      if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="py-8 text-center text-slate-500 font-mono">No se encontraron registros que coincidan con los filtros.</td></tr>';
+        return;
+      }
+
+      var html = "";
+      filtered.forEach(function(r) {
+        var dateStr = r.t ? new Date(r.t).toLocaleString("es-AR") : "-";
+        var diffHtml = "-";
+        if (r.expected != null && r.real != null) {
+          var d = r.expected - r.real;
+          if (d > TOLERANCE) diffHtml = '<span class="text-rose-400 font-mono">+' + d.toFixed(1) + ' (Sobre)</span>';
+          else if (d < -TOLERANCE) diffHtml = '<span class="text-emerald-400 font-mono">' + d.toFixed(1) + ' (Sub)</span>';
+          else diffHtml = '<span class="text-slate-400 font-mono">±0.0 (Acertó)</span>';
+        }
+
+        html += '<tr class="hover:bg-slate-800/40 transition-colors border-b border-slate-800/40">' +
+          '<td class="py-3 px-4 font-mono text-indigo-300 font-medium">' + r.userId + '</td>' +
+          '<td class="py-3 px-4 text-center font-mono font-bold text-indigo-400">' + (r.expected != null ? r.expected.toFixed(1) : "-") + '</td>' +
+          '<td class="py-3 px-4 text-center font-mono font-bold text-amber-400">' + (r.real != null ? r.real.toFixed(1) : "-") + '</td>' +
+          '<td class="py-3 px-4 text-center">' + diffHtml + '</td>' +
+          '<td class="py-3 px-4 text-slate-400 font-mono text-[11px]">' + dateStr + '</td>' +
+          '<td class="py-3 px-4 text-right">' +
+            '<button class="btn-del-row px-2 py-1 text-[11px] font-semibold text-rose-400 hover:bg-rose-500/10 rounded border border-rose-500/20 transition" data-id="' + r.userId + '">Eliminar</button>' +
+          '</td>' +
+        '</tr>';
+      });
+
+      tbody.innerHTML = html;
+
+      // Event Listeners para botones de eliminar fila
+      var delBtns = tbody.querySelectorAll(".btn-del-row");
+      delBtns.forEach(function(btn) {
+        btn.addEventListener("click", function() {
+          deleteSingleUser(this.dataset.id);
+        });
+      });
+    }
+
+    // --- EXPORTACIÓN DE DATOS ---
+    function exportCSV() {
+      if (!S.rows.length) return alert("No hay datos para exportar.");
+      var csv = "UserId,NotaEsperada,NotaReal,FechaEnvio\n";
+      S.rows.forEach(function(r) {
+        csv += [r.userId, r.expected ?? "", r.real ?? "", r.t ?? ""].join(",") + "\n";
+      });
+      var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      var link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "expectativa_notas_export_" + Date.now() + ".csv";
+      link.click();
+    }
+
+    function exportJSON() {
+      if (!S.rows.length) return alert("No hay datos para exportar.");
+      var blob = new Blob([JSON.stringify(S.rows, null, 2)], { type: "application/json" });
+      var link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "expectativa_notas_raw_" + Date.now() + ".json";
+      link.click();
+    }
+
+    // --- MANEJO DE PESTAÑAS Y NAVEGACIÓN ---
+    function setupTabs() {
+      var btns = document.querySelectorAll(".tab-btn");
+      btns.forEach(function(btn) {
+        btn.addEventListener("click", function() {
+          var target = this.dataset.target;
+          S.activeTab = target;
+
+          btns.forEach(function(b) {
+            b.className = "tab-btn border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-semibold px-3 py-2.5 text-sm flex items-center gap-2 transition";
+          });
+          this.className = "tab-btn border-b-2 border-indigo-500 text-indigo-400 font-semibold px-3 py-2.5 text-sm flex items-center gap-2 transition";
+
+          document.querySelectorAll(".tab-content").forEach(function(c) { c.classList.add("hidden"); });
+          $(target).classList.remove("hidden");
+
+          updateUI();
+        });
+      });
+    }
+
+    // --- EVENT LISTENERS GENERALES ---
+    function setupEventListeners() {
+      $("btn-manual-refresh").addEventListener("click", loadData);
+
+      $("poll-interval").addEventListener("change", function() {
+        S.pollMs = parseInt(this.value, 10);
+        if (S.pollTimer) clearInterval(S.pollTimer);
+        if (S.pollMs > 0) {
+          S.pollTimer = setInterval(loadData, S.pollMs);
+        }
+      });
+
+      $("toggle-demo-mode").addEventListener("change", function() {
+        S.useDemo = this.checked;
+        loadData();
+      });
+
+      // Búsqueda y Filtros de Tabla
+      $("search-user").addEventListener("input", function() {
+        S.searchUser = this.value;
+        renderDataTable();
+      });
+      $("filter-bias").addEventListener("change", function() {
+        S.filterBias = this.value;
+        renderDataTable();
+      });
+      $("sort-order").addEventListener("change", function() {
+        S.sortOrder = this.value;
+        renderDataTable();
+      });
+
+      // Exportación
+      $("btn-export-csv").addEventListener("click", exportCSV);
+      $("btn-export-json").addEventListener("click", exportJSON);
+
+      // Generador Demo
+      $("btn-gen-5").addEventListener("click", function() {
+        demoDataset = demoDataset.concat(generateMockData(5));
+        S.useDemo = true;
+        $("toggle-demo-mode").checked = true;
+        loadData();
+      });
+      $("btn-gen-20").addEventListener("click", function() {
+        demoDataset = demoDataset.concat(generateMockData(20));
+        S.useDemo = true;
+        $("toggle-demo-mode").checked = true;
+        loadData();
+      });
+
+      // Purga de Base de Datos
+      $("btn-purge-all").addEventListener("click", async function() {
+        if (!confirm("⚠️ ¿ATENCIÓN: Está seguro de que desea eliminar TODOS los registros guardados?")) return;
+        
+        if (S.useDemo) {
+          demoDataset = [];
+          loadData();
+          return;
+        }
+
+        try {
+          // Eliminar cada usuario
+          for (var i = 0; i < S.rows.length; i++) {
+            await fetch(API_URL, {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ userId: S.rows[i].userId })
+            });
+          }
+          loadData();
+        } catch(e) {
+          alert("Error al purgar la base de datos.");
+        }
+      });
+    }
+
+    // --- ARRANQUE E INICIALIZACIÓN ---
+    function init() {
+      setupTabs();
+      setupEventListeners();
+      loadData();
+      S.pollTimer = setInterval(loadData, S.pollMs);
+    }
+
+    init();
+  })();
+  </script>
+</body>
+</html>
