@@ -110,7 +110,7 @@ svg .tt { font: 11px var(--body); fill: var(--muted); }
   <header class="hide-present">
     <p class="eyebrow">Grupo de clase</p>
     <h1>Expectativa de nota</h1>
-    <p class="lead">Hasta las 14:15 anotás qué nota esperás sacar. Después de las 14:15, cuando salgan las notas, cargás la real. Los resultados se arman en vivo.</p>
+    <p class="lead">Hasta las 15:00 anotás qué nota esperás sacar. Después de las 15:00, cuando salgan las notas, cargás la real. Los resultados se arman en vivo.</p>
   </header>
   <p class="privacy hide-present">Es anónima. Tu respuesta se guarda de forma segura con un identificador único en tu navegador.</p>
 
@@ -125,7 +125,7 @@ svg .tt { font: 11px var(--body); fill: var(--muted); }
     <div class="banner" id="phase"></div>
     <div class="steps">
       <div class="step" id="step-exp">
-        <p class="eyebrow" style="margin:0">Hasta las 14:15</p>
+        <p class="eyebrow" style="margin:0">Hasta las 15:00</p>
         <h2>¿Qué nota esperás sacar?</h2>
         <div class="row">
           <input class="num" id="exp" type="text" inputmode="decimal" autocomplete="off" aria-label="Nota esperada" placeholder="7,5" disabled>
@@ -135,7 +135,7 @@ svg .tt { font: 11px var(--body); fill: var(--muted); }
         <p class="msg" id="msg-exp" aria-live="polite"></p>
       </div>
       <div class="step" id="step-real" data-off="true">
-        <p class="eyebrow" style="margin:0">Desde las 14:15</p>
+        <p class="eyebrow" style="margin:0">Desde las 15:00</p>
         <h2>¿Qué nota sacaste?</h2>
         <div class="row">
           <input class="num" id="real" type="text" inputmode="decimal" autocomplete="off" aria-label="Nota real" placeholder="6" disabled>
@@ -171,7 +171,7 @@ svg .tt { font: 11px var(--body); fill: var(--muted); }
 
 <script>
 (function () {
-  var CUTOFF = Date.parse("2026-10-22T14:15:00-03:00");
+  var CUTOFF = Date.parse("2026-10-22T15:00:00-03:00");
   var MIN = 0, MAX = 10, MIN_SHOWN = 3, HIT = 0.5;
   var API_URL = "/.netlify/functions/responses";
   var $ = function (id) { return document.getElementById(id); };
@@ -250,8 +250,8 @@ svg .tt { font: 11px var(--body); fill: var(--muted); }
   function renderPhase() {
     var p = phase(), cd = countdown();
     var t = p === "pre"
-      ? 'La nota esperada se puede cargar hasta las <b>14:15</b>' + (cd ? ' (faltan <b>' + cd + '</b>)' : '') + '. La nota real se habilita después.'
-      : 'El plazo para la nota esperada cerró a las <b>14:15</b>. Ahora se puede cargar la nota real.';
+      ? 'La nota esperada se puede cargar hasta las <b>15:00</b>' + (cd ? ' (faltan <b>' + cd + '</b>)' : '') + '. La nota real se habilita después.'
+      : 'El plazo para la nota esperada cerró a las <b>15:00</b>. Ahora se puede cargar la nota real.';
     if ($("phase").innerHTML !== t) $("phase").innerHTML = t;
   }
   function renderParticipate() {
@@ -272,8 +272,8 @@ svg .tt { font: 11px var(--body); fill: var(--muted); }
     $("step-real").dataset.off = p === "post" ? "false" : "true";
     $("hint-exp").textContent = p === "pre" ? "Escala de 0 a 10. Podés usar coma o punto." : (row ? "El plazo cerró. Tu nota esperada quedó guardada." : "El plazo cerró y no cargaste tu nota esperada.");
     var hr;
-    if (p === "pre") hr = "Se habilita a las 14:15. Volvé a esta página cuando salgan las notas.";
-    else if (!row) hr = "Solo pueden cargar la nota real quienes guardaron su nota esperada antes de las 14:15.";
+    if (p === "pre") hr = "Se habilita a las 15:00. Volvé a esta página cuando salgan las notas.";
+    else if (!row) hr = "Solo pueden cargar la nota real quienes guardaron su nota esperada antes de las 15:00.";
     else hr = "Escala de 0 a 10. Podés usar coma o punto.";
     $("hint-real").textContent = hr;
     var del = $("del-zone");
@@ -422,7 +422,7 @@ svg .tt { font: 11px var(--body); fill: var(--muted); }
     } else sm.hidden = true;
     updateHist(exps, showPairs ? pairs.map(function (r) { return r.real; }) : []);
     $("hist-note").textContent = showPairs ? "" : (phase() === "pre"
-      ? "La nota real se carga desde las 14:15. Las barras de notas reales aparecen cuando haya al menos " + MIN_SHOWN + "."
+      ? "La nota real se carga desde las 15:00. Las barras de notas reales aparecen cuando haya al menos " + MIN_SHOWN + "."
       : "Las barras de notas reales aparecen cuando haya al menos " + MIN_SHOWN + " cargadas. Hoy hay " + m + ".");
     var h = "";
     if (showPairs) {
